@@ -1,0 +1,22 @@
+### Получить все рабочие процессы
+GET http://localhost:3000/api/workflows
+
+### Создать новый рабочий процесс
+POST http://localhost:3000/api/workflows
+Content-Type: application/json
+
+{
+  "name": "Новый тестовый процесс",
+  "enabled": true
+}
+
+### Обновить рабочий процесс с ID=1
+PUT http://localhost:3000/api/workflows/1
+Content-Type: application/json
+
+{
+  "enabled": false
+}
+
+### Удалить рабочий процесс с ID=2
+DELETE http://localhost:3000/api/workflows/2
