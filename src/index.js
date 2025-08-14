@@ -6,20 +6,13 @@ const telegramRoutes = require('./api/telegram.routes');
 const webhookRoutes = require('./api/webhook.routes');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3000; 
 
 // --- НАЧАЛО ВАЖНЫХ ИЗМЕНЕНИЙ ---
 
-// Создаем объект с настройками для CORS
-const corsOptions = {
-  // Явно указываем, с какого "источника" (адреса) мы разрешаем запросы.
-  // Вставьте сюда URL вашего фронтенда на Vercel.
-  origin: 'https://len-frontend-chi.vercel.app',
-  optionsSuccessStatus: 200
-};
-
-// Используем cors с нашими новыми, строгими настройками.
-app.use(cors(corsOptions));
+// Используем cors без настроек, что по умолчанию означает "разрешить всем".
+// Это самый надежный способ для решения проблем с CORS в разных браузерах.
+app.use(cors());
 
 // --- КОНЕЦ ВАЖНЫХ ИЗМЕНЕНИЙ ---
 

@@ -16,7 +16,6 @@ router.post('/get-chat-id', async (req, res) => {
     const updates = response.data.result;
 
     if (updates && updates.length > 0) {
-      // Берем ID чата из самого последнего сообщения
       const lastUpdate = updates[updates.length - 1];
       const chatId = lastUpdate.message?.chat?.id || lastUpdate.edited_message?.chat?.id || lastUpdate.channel_post?.chat?.id;
       if (chatId) {
@@ -31,6 +30,31 @@ router.post('/get-chat-id', async (req, res) => {
     console.error("Ошибка API Telegram:", error.response?.data);
     res.status(500).json({ message: 'Ошибка при обращении к API Telegram.' });
   }
+});
+
+// Маршрут для автоматической установки вебхука
+router.post('/set-webhook', async (req, res) => {
+    const { token, workflowId } = req.body;
+    if (!token || !workflowId) {
+        return res.status(400).json({ message: 'Токен или ID процесса не предоставлены' });
+    }
+
+    // ВАЖНО: Этот URL должен быть публичным адресом вашего бэкенда
+    // Мы пока оставим localhost, но для реальной работы его нужно будет заменить на URL с Render
+    const webhookUrl = `${process.env.BACKEND_URL}/api/webhooks/telegram/${workflowId}`;
+    const telegramApiUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`;
+
+    try {
+        const response = await axios.get(telegramApiUrl);
+        if (response.data.ok) {
+            res.json({ success: true, message: `Вебхук успешно установлен на ${webhookUrl}` });
+        } else {
+            throw new Error(response.data.description);
+        }
+    } catch (error) {
+        console.error("Ошибка установки вебхука:", error.response?.data || error.message);
+        res.status(500).json({ success: false, message: `Ошибка установки вебхука: ${error.message}` });
+    }
 });
 
 module.exports = router;
