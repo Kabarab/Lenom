@@ -9,10 +9,21 @@ router.post('/get-chat-id', async (req, res) => {
     return res.status(400).json({ message: 'Токен не предоставлен' });
   }
 
-  const url = `https://api.telegram.org/bot${token}/getUpdates`;
+  const getUpdatesUrl = `https://api.telegram.org/bot${token}/getUpdates`;
 
   try {
-    const response = await axios.get(url);
+    // Перед получением обновлений удаляем вебхук, чтобы избежать конфликта
+    try {
+      const deleteWebhookUrl = `https://api.telegram.org/bot${token}/deleteWebhook`;
+      await axios.get(deleteWebhookUrl);
+      console.log('Вебхук успешно удален (если он был установлен).');
+    } catch (error) {
+      // Мы можем проигнорировать ошибку, так как вебхук мог быть и не установлен.
+      // Логируем для информации, но не прерываем процесс.
+      console.warn('Не удалось удалить вебхук. Возможно, он не был установлен.');
+    }
+
+    const response = await axios.get(getUpdatesUrl);
     const updates = response.data.result;
 
     if (updates && updates.length > 0) {
