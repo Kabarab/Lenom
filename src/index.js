@@ -6,7 +6,6 @@ const telegramRoutes = require('./api/telegram.routes');
 const webhookRoutes = require('./api/webhook.routes');
 
 const app = express();
-у
 
 // --- НАЧАЛО ВАЖНЫХ ИЗМЕНЕНИЙ ---
 
