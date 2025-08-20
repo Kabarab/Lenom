@@ -6,7 +6,7 @@ const telegramRoutes = require('./api/telegram.routes');
 const webhookRoutes = require('./api/webhook.routes');
 
 const app = express();
-const port = process.env.PORT || 3000; 
+у
 
 // --- НАЧАЛО ВАЖНЫХ ИЗМЕНЕНИЙ ---
 
