@@ -19,7 +19,7 @@ router.post('/telegram/:workflowId', async (req, res) => {
 
     const workflow = doc.data();
 
-    // ИЗМЕНЕНИЕ: Передаем данные из вебхука в движок
+    // Передаем данные из вебхука в движок
     await executeWorkflow(workflow.nodes, workflow.edges, telegramUpdate);
 
     res.sendStatus(200);

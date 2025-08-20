@@ -35,7 +35,7 @@ async function executeWorkflow(nodes, edges, triggerData) {
     if (currentNode.type === 'telegram') {
       try {
         const { botToken } = currentNode.data;
-        // ИЗМЕНЕНИЕ: Берем chatId и message из данных на "конвейере"
+        // Берем chatId и message из данных на "конвейере"
         const chatId = replacePlaceholders(currentNode.data.chatId, currentData);
         const message = replacePlaceholders(currentNode.data.message, currentData);
 
