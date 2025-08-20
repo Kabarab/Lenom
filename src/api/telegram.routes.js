@@ -39,9 +39,7 @@ router.post('/set-webhook', async (req, res) => {
         return res.status(400).json({ message: 'Токен или ID процесса не предоставлены' });
     }
 
-    // ИЗМЕНЕНИЕ: Используем переменную окружения для публичного URL
-    const backendUrl = process.env.BACKEND_URL || `http://localhost:3000`;
-    const webhookUrl = `${backendUrl}/api/webhooks/telegram/${workflowId}`;
+    const webhookUrl = `${process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`}/api/webhooks/telegram/${workflowId}`;
     const telegramApiUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${webhookUrl}`;
 
     try {
@@ -54,6 +52,27 @@ router.post('/set-webhook', async (req, res) => {
     } catch (error) {
         console.error("Ошибка установки вебхука:", error.response?.data || error.message);
         res.status(500).json({ success: false, message: `Ошибка установки вебхука: ${error.message}` });
+    }
+});
+
+// --- НОВЫЙ МАРШРУТ ---
+// Маршрут для удаления вебхука
+router.post('/delete-webhook', async (req, res) => {
+    const { token } = req.body;
+    if (!token) {
+        return res.status(400).json({ message: 'Токен не предоставлен' });
+    }
+    const telegramApiUrl = `https://api.telegram.org/bot${token}/deleteWebhook`;
+    try {
+        const response = await axios.get(telegramApiUrl);
+        if (response.data.ok) {
+            res.json({ success: true, message: 'Вебхук успешно удален.' });
+        } else {
+            throw new Error(response.data.description);
+        }
+    } catch (error) {
+        console.error("Ошибка удаления вебхука:", error.response?.data || error.message);
+        res.status(500).json({ success: false, message: `Ошибка удаления вебхука: ${error.message}` });
     }
 });
 
