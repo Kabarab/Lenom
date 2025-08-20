@@ -6,14 +6,11 @@ const telegramRoutes = require('./api/telegram.routes');
 const webhookRoutes = require('./api/webhook.routes');
 
 const app = express();
-
-// --- НАЧАЛО ВАЖНЫХ ИЗМЕНЕНИЙ ---
+const port = process.env.PORT || 3000;
 
 // Используем cors без настроек, что по умолчанию означает "разрешить всем".
 // Это самый надежный способ для решения проблем с CORS в разных браузерах.
 app.use(cors());
-
-// --- КОНЕЦ ВАЖНЫХ ИЗМЕНЕНИЙ ---
 
 app.use(express.json());
 
