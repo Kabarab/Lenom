@@ -39,12 +39,28 @@ function deepReplacePlaceholders(data, context) {
     return data;
 }
 
-async function executeWorkflow(nodes, edges, triggerData) {
+// Добавлен новый параметр triggerType
+async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
     console.log("--- Начинаем выполнение процесса ---");
-    const startNode = nodes.find(node => !edges.some(edge => edge.target === node.id));
-    if (!startNode) {
-        return { success: false, message: "Не найден стартовый узел" };
+
+    let startNode;
+
+    // Ищем стартовый узел более точно
+    if (triggerType === 'TELEGRAM') {
+        startNode = nodes.find(node => node.type === 'telegramTrigger');
+    } else {
+        // Старая логика для ручного запуска
+        startNode = nodes.find(node => !edges.some(edge => edge.target === node.id));
     }
+
+    if (!startNode) {
+        const message = triggerType
+            ? `Не найден стартовый узел (триггер) типа "${triggerType}"`
+            : "Не найден стартовый узел (узел без входящих соединений)";
+        console.error(`[Execution] ОШИБКА: ${message}`);
+        return { success: false, message };
+    }
+
 
     let currentNode = startNode;
     const executionPath = [];
