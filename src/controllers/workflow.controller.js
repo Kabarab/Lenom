@@ -1,5 +1,6 @@
 const db = require('../config/firebase');
 const executionService = require('../services/execution.service');
+const axios = require('axios'); // Добавляем axios для запросов к Telegram
 
 const workflowsCollection = db.collection('workflows');
 
@@ -34,8 +35,6 @@ const createWorkflow = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-// --- НАЧАЛО ВАЖНЫХ ИЗМЕНЕНИЙ ---
 
 // Проверяем принадлежность документа пользователю
 const checkOwnership = async (docId, userId) => {
@@ -87,6 +86,7 @@ const deleteWorkflow = async (req, res) => {
     }
 };
 
+// --- СУЩЕСТВЕННЫЕ ИЗМЕНЕНИЯ В ЛОГИКЕ ЗАПУСКА ---
 // RUN
 const runWorkflow = async (req, res) => {
     try {
@@ -96,22 +96,31 @@ const runWorkflow = async (req, res) => {
         }
         const workflow = doc.data();
 
-        // --- ДОБАВЛЕНО ---
-        // Создаем тестовые данные для ручного запуска
-        const testTriggerData = {
-          message: {
-            text: "Это тестовый запуск!",
-            chat: {
-              id: "123456789" // Вы можете заменить это на реальный ID для тестов
-            }
-          }
-        };
-        // --- КОНЕЦ ДОБАВЛЕНИЯ ---
+        // 1. Находим триггер в процессе
+        const triggerNode = workflow.nodes.find(n => n.type === 'telegramTrigger');
+        if (!triggerNode || !triggerNode.data.botToken) {
+            return res.status(400).json({ message: 'Не найден Telegram-триггер с токеном бота в этом процессе.' });
+        }
 
-        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, testTriggerData); // Передаем данные в сервис
+        // 2. Получаем последнее сообщение от Telegram
+        const getUpdatesUrl = `https://api.telegram.org/bot${triggerNode.data.botToken}/getUpdates`;
+        const tgResponse = await axios.get(getUpdatesUrl);
+        const updates = tgResponse.data.result;
+
+        if (!updates || updates.length === 0) {
+            return res.status(404).json({ message: 'Не найдено ни одного сообщения для этого бота. Отправьте ему что-нибудь для теста.' });
+        }
+        
+        // 3. Используем самое последнее обновление как тестовые данные
+        const lastUpdate = updates[updates.length - 1];
+
+        // 4. Запускаем процесс с реальными данными и правильным типом триггера
+        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, lastUpdate, 'TELEGRAM');
         res.json(result);
+
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("Ошибка при ручном запуске:", error.response?.data || error.message);
+        res.status(500).json({ message: `Ошибка при ручном запуске: ${error.message}` });
     }
 };
 

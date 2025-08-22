@@ -3,17 +3,13 @@ const axios = require('axios');
 // Функция для замены плейсхолдеров типа {{...}}
 function replacePlaceholders(text, data) {
     if (!text || typeof text !== 'string') return text;
-    // Находим все вхождения {{path.to.value}}
     return text.replace(/{{(.*?)}}/g, (match, placeholder) => {
-        // Разбираем путь: 'trigger.message.text' -> ['trigger', 'message', 'text']
         const path = placeholder.trim().split('.');
-        // Ищем значение по этому пути в объекте данных
         let value = data;
         for (const key of path) {
             value = value?.[key];
-            if (value === undefined) return match; // Если не нашли, возвращаем плейсхолдер
+            if (value === undefined) return match;
         }
-        // Если значение - объект, вернем его как JSON-строку
         if (typeof value === 'object' && value !== null) {
             return JSON.stringify(value);
         }
@@ -21,7 +17,7 @@ function replacePlaceholders(text, data) {
     });
 }
 
-// Новая функция для рекурсивной замены плейсхолдеров в объектах и строках
+// Функция для рекурсивной замены плейсхолдеров в объектах и строках
 function deepReplacePlaceholders(data, context) {
     if (typeof data === 'string') {
         return replacePlaceholders(data, context);
@@ -39,32 +35,34 @@ function deepReplacePlaceholders(data, context) {
     return data;
 }
 
-// Добавлен новый параметр triggerType
 async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
     console.log("--- Начинаем выполнение процесса ---");
 
-    let startNode;
+    // --- ИЗМЕНЕНИЕ ---
+    // Добавляем проверку: если это Telegram-триггер, убедимся, что есть текстовое сообщение.
+    if (triggerType === 'TELEGRAM' && !triggerData.message?.text) {
+        const reason = "Данные от Telegram не содержат текстового сообщения. Процесс не запущен.";
+        console.log(`[Execution] ${reason}`);
+        return { success: true, message: reason, path: [] }; // Это не ошибка, а штатная ситуация
+    }
 
-    // Ищем стартовый узел более точно
+    let startNode;
     if (triggerType === 'TELEGRAM') {
         startNode = nodes.find(node => node.type === 'telegramTrigger');
     } else {
-        // Старая логика для ручного запуска
         startNode = nodes.find(node => !edges.some(edge => edge.target === node.id));
     }
 
     if (!startNode) {
         const message = triggerType
             ? `Не найден стартовый узел (триггер) типа "${triggerType}"`
-            : "Не найден стартовый узел (узел без входящих соединений)";
+            : "Не найден стартовый узел";
         console.error(`[Execution] ОШИБКА: ${message}`);
         return { success: false, message };
     }
 
-
     let currentNode = startNode;
     const executionPath = [];
-    // "Конвейерная лента" с данными. Сразу добавляем данные от триггера.
     let currentData = { trigger: triggerData };
 
     while (currentNode) {
@@ -72,75 +70,42 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
         console.log(`Выполняется узел: ${nodeIdentifier}`);
         executionPath.push(nodeIdentifier);
 
-        // Обработка узла Telegram
         if (currentNode.type === 'telegram') {
             try {
                 const nodeConfig = deepReplacePlaceholders(currentNode.data, currentData);
                 const { botToken, chatId, message } = nodeConfig;
 
-                if (!botToken || !chatId) {
-                    throw new Error('Токен бота или ID чата не указаны!');
-                }
-
+                if (!botToken || !chatId) throw new Error('Токен бота или ID чата не указаны!');
+                
                 const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
                 await axios.post(url, { chat_id: chatId, text: message });
                 console.log(`Сообщение успешно отправлено в Telegram: "${message}"`);
-
             } catch (error) {
                 console.error("Ошибка узла Telegram:", error.response?.data || error.message);
                 return { success: false, message: `Ошибка узла Telegram: ${error.message}` };
             }
         }
         
-        // --- НОВЫЙ БЛОК: Обработка HTTP-запроса ---
         if (currentNode.type === 'httpRequest') {
             try {
-                // Заменяем плейсхолдеры во всех параметрах узла
                 const config = deepReplacePlaceholders(currentNode.data, currentData);
                 const { url, method = 'GET', headers, body } = config;
 
-                if (!url) {
-                    throw new Error('URL не указан в настройках HTTP-узла!');
-                }
+                if (!url) throw new Error('URL не указан в настройках HTTP-узла!');
                 
                 console.log(`Выполняю ${method} запрос на: ${url}`);
                 
-                let parsedHeaders = headers;
-                if (typeof headers === 'string') {
-                    try {
-                        parsedHeaders = JSON.parse(headers);
-                    } catch (e) {
-                        throw new Error('Заголовки (headers) имеют неверный JSON формат.');
-                    }
-                }
+                let parsedHeaders = typeof headers === 'string' ? JSON.parse(headers) : headers;
+                let requestData = typeof body === 'string' ? JSON.parse(body) : body;
 
-                let requestData = body;
-                if (typeof body === 'string' && body.trim().startsWith('{')) {
-                     try {
-                        requestData = JSON.parse(body);
-                     } catch(e) {
-                        console.warn("Тело запроса выглядит как JSON, но не может быть обработано. Отправляется как строка.");
-                     }
-                }
-
-                const response = await axios({
-                    method,
-                    url,
-                    headers: parsedHeaders,
-                    data: requestData
-                });
-
-                // Добавляем результат запроса в "конвейер" под именем узла
+                const response = await axios({ method, url, headers: parsedHeaders, data: requestData });
                 currentData[currentNode.id] = response.data;
                 console.log("Ответ от сервера успешно получен.");
-
             } catch (error) {
                  console.error("Ошибка HTTP-узла:", error.response?.data || error.message);
                 return { success: false, message: `Ошибка HTTP-узла: ${error.message}` };
             }
         }
-        // --- КОНЕЦ НОВОГО БЛОКА ---
-
 
         const currentEdge = edges.find(edge => edge.source === currentNode.id);
         if (!currentEdge) {
