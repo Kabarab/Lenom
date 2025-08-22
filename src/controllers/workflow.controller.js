@@ -95,12 +95,26 @@ const runWorkflow = async (req, res) => {
             return res.status(404).json({ message: 'Процесс не найден или у вас нет к нему доступа' });
         }
         const workflow = doc.data();
-        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges);
+
+        // --- ДОБАВЛЕНО ---
+        // Создаем тестовые данные для ручного запуска
+        const testTriggerData = {
+          message: {
+            text: "Это тестовый запуск!",
+            chat: {
+              id: "123456789" // Вы можете заменить это на реальный ID для тестов
+            }
+          }
+        };
+        // --- КОНЕЦ ДОБАВЛЕНИЯ ---
+
+        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, testTriggerData); // Передаем данные в сервис
         res.json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 module.exports = {
   getAllWorkflows,
