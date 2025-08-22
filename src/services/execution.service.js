@@ -3,13 +3,17 @@ const axios = require('axios');
 // Функция для замены плейсхолдеров типа {{...}}
 function replacePlaceholders(text, data) {
     if (!text || typeof text !== 'string') return text;
+    // Находим все вхождения {{path.to.value}}
     return text.replace(/{{(.*?)}}/g, (match, placeholder) => {
+        // Разбираем путь: 'trigger.message.text' -> ['trigger', 'message', 'text']
         const path = placeholder.trim().split('.');
+        // Ищем значение по этому пути в объекте данных
         let value = data;
         for (const key of path) {
             value = value?.[key];
-            if (value === undefined) return match;
+            if (value === undefined) return match; // Если не нашли, возвращаем плейсхолдер
         }
+        // Если значение - объект, вернем его как JSON-строку
         if (typeof value === 'object' && value !== null) {
             return JSON.stringify(value);
         }
@@ -17,7 +21,7 @@ function replacePlaceholders(text, data) {
     });
 }
 
-// Функция для рекурсивной замены плейсхолдеров в объектах и строках
+// Новая функция для рекурсивной замены плейсхолдеров в объектах и строках
 function deepReplacePlaceholders(data, context) {
     if (typeof data === 'string') {
         return replacePlaceholders(data, context);
@@ -38,12 +42,10 @@ function deepReplacePlaceholders(data, context) {
 async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
     console.log("--- Начинаем выполнение процесса ---");
 
-    // --- ИЗМЕНЕНИЕ ---
-    // Добавляем проверку: если это Telegram-триггер, убедимся, что есть текстовое сообщение.
     if (triggerType === 'TELEGRAM' && !triggerData.message?.text) {
         const reason = "Данные от Telegram не содержат текстового сообщения. Процесс не запущен.";
         console.log(`[Execution] ${reason}`);
-        return { success: true, message: reason, path: [] }; // Это не ошибка, а штатная ситуация
+        return { success: true, message: reason, path: [] };
     }
 
     let startNode;
@@ -106,6 +108,40 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
                 return { success: false, message: `Ошибка HTTP-узла: ${error.message}` };
             }
         }
+
+        // --- НОВЫЙ БЛОК: Обработка узла Hugging Face ---
+        if (currentNode.type === 'huggingFace') {
+            try {
+                const config = deepReplacePlaceholders(currentNode.data, currentData);
+                const { hfToken, modelUrl, prompt } = config;
+
+                if (!hfToken || !modelUrl || !prompt) {
+                    throw new Error('Не указан API-токен, URL модели или запрос (prompt) для Hugging Face!');
+                }
+
+                console.log(`Отправляю запрос к модели Hugging Face: ${modelUrl}`);
+
+                const response = await axios({
+                    method: 'POST',
+                    url: modelUrl,
+                    headers: {
+                        'Authorization': `Bearer ${hfToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    data: {
+                        inputs: prompt
+                    }
+                });
+
+                currentData[currentNode.id] = response.data;
+                console.log("Ответ от Hugging Face успешно получен.");
+
+            } catch (error) {
+                console.error("Ошибка узла Hugging Face:", error.response?.data || error.message);
+                return { success: false, message: `Ошибка узла Hugging Face: ${error.message}` };
+            }
+        }
+        // --- КОНЕЦ НОВОГО БЛОКА ---
 
         const currentEdge = edges.find(edge => edge.source === currentNode.id);
         if (!currentEdge) {
