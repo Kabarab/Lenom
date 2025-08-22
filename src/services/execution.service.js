@@ -109,7 +109,6 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
             }
         }
 
-        // --- НОВЫЙ БЛОК: Обработка узла Hugging Face ---
         if (currentNode.type === 'huggingFace') {
             try {
                 const config = deepReplacePlaceholders(currentNode.data, currentData);
@@ -141,7 +140,6 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
                 return { success: false, message: `Ошибка узла Hugging Face: ${error.message}` };
             }
         }
-        // --- КОНЕЦ НОВОГО БЛОКА ---
 
         const currentEdge = edges.find(edge => edge.source === currentNode.id);
         if (!currentEdge) {
