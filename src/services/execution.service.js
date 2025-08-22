@@ -39,7 +39,6 @@ function deepReplacePlaceholders(data, context) {
     return data;
 }
 
-
 async function executeWorkflow(nodes, edges, triggerData) {
     console.log("--- Начинаем выполнение процесса ---");
     const startNode = nodes.find(node => !edges.some(edge => edge.target === node.id));
@@ -90,11 +89,29 @@ async function executeWorkflow(nodes, edges, triggerData) {
                 
                 console.log(`Выполняю ${method} запрос на: ${url}`);
                 
+                let parsedHeaders = headers;
+                if (typeof headers === 'string') {
+                    try {
+                        parsedHeaders = JSON.parse(headers);
+                    } catch (e) {
+                        throw new Error('Заголовки (headers) имеют неверный JSON формат.');
+                    }
+                }
+
+                let requestData = body;
+                if (typeof body === 'string' && body.trim().startsWith('{')) {
+                     try {
+                        requestData = JSON.parse(body);
+                     } catch(e) {
+                        console.warn("Тело запроса выглядит как JSON, но не может быть обработано. Отправляется как строка.");
+                     }
+                }
+
                 const response = await axios({
                     method,
                     url,
-                    headers: typeof headers === 'string' ? JSON.parse(headers) : headers,
-                    data: body
+                    headers: parsedHeaders,
+                    data: requestData
                 });
 
                 // Добавляем результат запроса в "конвейер" под именем узла
