@@ -1,6 +1,6 @@
 const db = require('../config/firebase');
 const executionService = require('../services/execution.service');
-const axios = require('axios'); // Добавляем axios для запросов к Telegram
+const axios = require('axios');
 
 const workflowsCollection = db.collection('workflows');
 
@@ -19,16 +19,22 @@ const getAllWorkflows = async (req, res) => {
   }
 };
 
+// --- ИЗМЕНЕНИЕ: Улучшаем функцию создания ---
 // CREATE
 const createWorkflow = async (req, res) => {
   try {
     const userId = req.user.uid;
+    const { name, nodes, edges } = req.body; // Получаем имя и опционально узлы/связи
+
     const newWorkflowData = {
-      ...req.body,
+      name: name,
+      enabled: true, // Всегда включаем при создании
       userId: userId,
-      nodes: [],
-      edges: []
+      // Если узлы и связи переданы, используем их, иначе создаем пустые массивы
+      nodes: nodes || [],
+      edges: edges || []
     };
+    
     const docRef = await workflowsCollection.add(newWorkflowData);
     res.status(201).json({ id: docRef.id, ...newWorkflowData });
   } catch (error) {
@@ -86,7 +92,6 @@ const deleteWorkflow = async (req, res) => {
     }
 };
 
-// --- СУЩЕСТВЕННЫЕ ИЗМЕНЕНИЯ В ЛОГИКЕ ЗАПУСКА ---
 // RUN
 const runWorkflow = async (req, res) => {
     try {
@@ -96,31 +101,17 @@ const runWorkflow = async (req, res) => {
         }
         const workflow = doc.data();
 
-        // 1. Находим триггер в процессе
-        const triggerNode = workflow.nodes.find(n => n.type === 'telegramTrigger');
-        if (!triggerNode || !triggerNode.data.botToken) {
-            return res.status(400).json({ message: 'Не найден Telegram-триггер с токеном бота в этом процессе.' });
-        }
+        const testTriggerData = {
+          message: {
+            text: "Это тестовый запуск!",
+            chat: { id: "12345" }
+          }
+        };
 
-        // 2. Получаем последнее сообщение от Telegram
-        const getUpdatesUrl = `https://api.telegram.org/bot${triggerNode.data.botToken}/getUpdates`;
-        const tgResponse = await axios.get(getUpdatesUrl);
-        const updates = tgResponse.data.result;
-
-        if (!updates || updates.length === 0) {
-            return res.status(404).json({ message: 'Не найдено ни одного сообщения для этого бота. Отправьте ему что-нибудь для теста.' });
-        }
-        
-        // 3. Используем самое последнее обновление как тестовые данные
-        const lastUpdate = updates[updates.length - 1];
-
-        // 4. Запускаем процесс с реальными данными и правильным типом триггера
-        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, lastUpdate, 'TELEGRAM');
+        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, testTriggerData); 
         res.json(result);
-
     } catch (error) {
-        console.error("Ошибка при ручном запуске:", error.response?.data || error.message);
-        res.status(500).json({ message: `Ошибка при ручном запуске: ${error.message}` });
+        res.status(500).json({ message: error.message });
     }
 };
 
