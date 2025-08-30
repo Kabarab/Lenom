@@ -140,6 +140,40 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
                 return { success: false, message: `Ошибка узла Hugging Face: ${error.message}` };
             }
         }
+        
+        if (currentNode.type === 'chatGPT') {
+            try {
+                const config = deepReplacePlaceholders(currentNode.data, currentData);
+                const { apiKey, prompt, model = 'gpt-3.5-turbo' } = config;
+
+                if (!apiKey || !prompt) {
+                    throw new Error('Не указан API-ключ или запрос (prompt) для ChatGPT!');
+                }
+
+                console.log(`Отправляю запрос к модели ChatGPT: ${model}`);
+
+                const response = await axios({
+                    method: 'POST',
+                    url: 'https://api.openai.com/v1/chat/completions',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    data: {
+                        model: model,
+                        messages: [{ role: 'user', content: prompt }]
+                    }
+                });
+
+                currentData[currentNode.id] = response.data;
+                console.log("Ответ от ChatGPT успешно получен.");
+
+            } catch (error) {
+                console.error("Ошибка узла ChatGPT:", error.response?.data || error.message);
+                return { success: false, message: `Ошибка узла ChatGPT: ${error.message}` };
+            }
+        }
+
 
         const currentEdge = edges.find(edge => edge.source === currentNode.id);
         if (!currentEdge) {
