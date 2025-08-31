@@ -174,6 +174,45 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
             }
         }
 
+        if (currentNode.type === 'yandexgpt') { // --- ДОБАВЛЕНО YANDEX ---
+            try {
+                const config = deepReplacePlaceholders(currentNode.data, currentData);
+                const { apiKey, folderId, prompt, model = 'yandexgpt-lite' } = config;
+
+                if (!apiKey || !folderId || !prompt) {
+                    throw new Error('Не указан API-ключ, Folder ID или запрос (prompt) для YandexGPT!');
+                }
+
+                console.log(`Отправляю запрос к модели YandexGPT: ${model}`);
+
+                const response = await axios({
+                    method: 'POST',
+                    url: 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion',
+                    headers: {
+                        'Authorization': `Api-Key ${apiKey}`,
+                        'x-folder-id': folderId,
+                        'Content-Type': 'application/json',
+                    },
+                    data: {
+                        modelUri: `gpt://${folderId}/${model}`,
+                        completionOptions: {
+                          stream: false,
+                          temperature: 0.6,
+                          maxTokens: "2000"
+                        },
+                        messages: [{ role: 'user', text: prompt }]
+                    }
+                });
+
+                currentData[currentNode.id] = response.data;
+                console.log("Ответ от YandexGPT успешно получен.");
+
+            } catch (error) {
+                console.error("Ошибка узла YandexGPT:", error.response?.data || error.message);
+                return { success: false, message: `Ошибка узла YandexGPT: ${error.message}` };
+            }
+        }
+
 
         const currentEdge = edges.find(edge => edge.source === currentNode.id);
         if (!currentEdge) {
