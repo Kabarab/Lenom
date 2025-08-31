@@ -1,5 +1,21 @@
 const axios = require('axios');
 
+// --- НОВАЯ ФУНКЦИЯ ---
+// Функция для очистки PEM-ключа от лишних строк
+function cleanApiKey(apiKey) {
+    if (typeof apiKey !== 'string') return apiKey;
+
+    // Удаляем стандартные заголовки и подписи PEM, а также первую строку с комментарием
+    const cleanedKey = apiKey
+        .replace("PLEASE DO NOT REMOVE THIS LINE! Yandex.Cloud SA Key ID <ajeemk07g7po5je25qdd>", "")
+        .replace("-----BEGIN PRIVATE KEY-----", "")
+        .replace("-----END PRIVATE KEY-----", "")
+        .replace(/\s/g, ''); // Удаляем все пробелы и переносы строк
+
+    return cleanedKey;
+}
+
+
 // Функция для замены плейсхолдеров типа {{...}}
 function replacePlaceholders(text, data) {
     if (!text || typeof text !== 'string') return text;
@@ -192,10 +208,12 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
             }
         }
 
-        if (currentNode.type === 'yandexgpt') { // --- ДОБАВЛЕНО YANDEX ---
+        if (currentNode.type === 'yandexgpt') { 
             try {
                 const config = deepReplacePlaceholders(currentNode.data, currentData);
-                const { apiKey, folderId, prompt, model = 'yandexgpt-lite' } = config;
+                // --- ИЗМЕНЕНИЕ: Очищаем ключ перед использованием ---
+                const apiKey = cleanApiKey(config.apiKey);
+                const { folderId, prompt, model = 'yandexgpt-lite' } = config;
 
                 if (!apiKey || !folderId || !prompt) {
                     throw new Error('Не указан API-ключ, Folder ID или запрос (prompt) для YandexGPT!');
