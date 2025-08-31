@@ -66,11 +66,29 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
     let currentNode = startNode;
     const executionPath = [];
     let currentData = { trigger: triggerData };
+    let previousNode = null;
+
 
     while (currentNode) {
         const nodeIdentifier = currentNode.data.label || currentNode.type || currentNode.id;
         console.log(`Выполняется узел: ${nodeIdentifier}`);
         executionPath.push(nodeIdentifier);
+        
+        // --- НОВАЯ ЛОГИКА АВТОПОДСТАНОВКИ ---
+        // Если это первый узел после триггера и у него есть поле prompt/message
+        if (previousNode && previousNode.type === 'telegramTrigger') {
+            const nodeData = currentNode.data;
+            // Если поле пустое, подставляем в него текст из триггера
+            if ('prompt' in nodeData && !nodeData.prompt) {
+                console.log(`Автоматически подставляем prompt из триггера для узла ${nodeIdentifier}`);
+                nodeData.prompt = triggerData.message.text;
+            }
+            if ('message' in nodeData && !nodeData.message) {
+                 console.log(`Автоматически подставляем message из триггера для узла ${nodeIdentifier}`);
+                nodeData.message = triggerData.message.text;
+            }
+        }
+        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
 
         if (currentNode.type === 'telegram') {
             try {
@@ -219,6 +237,7 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
             console.log("Достигнут конец ветки.");
             break;
         }
+        previousNode = currentNode; // Запоминаем текущий узел перед переходом к следующему
         currentNode = nodes.find(node => node.id === currentEdge.target);
     }
     console.log("--- Выполнение завершено ---");
