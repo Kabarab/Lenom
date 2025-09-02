@@ -1,8 +1,17 @@
 const db = require('../config/firebase');
 const executionService = require('../services/execution.service');
-const axios = require('axios');
 
 const workflowsCollection = db.collection('workflows');
+const secretsCollection = db.collection('user_secrets'); // --- ДОБАВЛЕНО ---
+
+// Проверяем принадлежность документа пользователю
+const checkOwnership = async (docId, userId) => {
+    const doc = await workflowsCollection.doc(docId).get();
+    if (!doc.exists || doc.data().userId !== userId) {
+        return false;
+    }
+    return doc;
+};
 
 // READ (All)
 const getAllWorkflows = async (req, res) => {
@@ -19,18 +28,16 @@ const getAllWorkflows = async (req, res) => {
   }
 };
 
-// --- ИЗМЕНЕНИЕ: Улучшаем функцию создания ---
 // CREATE
 const createWorkflow = async (req, res) => {
   try {
     const userId = req.user.uid;
-    const { name, nodes, edges } = req.body; // Получаем имя и опционально узлы/связи
+    const { name, nodes, edges } = req.body;
 
     const newWorkflowData = {
       name: name,
-      enabled: true, // Всегда включаем при создании
+      enabled: true,
       userId: userId,
-      // Если узлы и связи переданы, используем их, иначе создаем пустые массивы
       nodes: nodes || [],
       edges: edges || []
     };
@@ -40,15 +47,6 @@ const createWorkflow = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-};
-
-// Проверяем принадлежность документа пользователю
-const checkOwnership = async (docId, userId) => {
-    const doc = await workflowsCollection.doc(docId).get();
-    if (!doc.exists || doc.data().userId !== userId) {
-        return false;
-    }
-    return doc;
 };
 
 // READ (One)
@@ -101,6 +99,36 @@ const runWorkflow = async (req, res) => {
         }
         const workflow = doc.data();
 
+        // --- ДОБАВЛЕНО: Получаем ключи пользователя ---
+        const secretsDoc = await secretsCollection.doc(req.user.uid).get();
+        const secrets = secretsDoc.exists ? secretsDoc.data() : {};
+        
+        // Добавляем секреты в узлы, если они там не определены
+        const nodesWithSecrets = workflow.nodes.map(node => {
+            const newNode = { ...node, data: { ...node.data } };
+            switch(node.type) {
+                case 'telegramTrigger':
+                case 'telegram':
+                    if (!newNode.data.botToken && secrets.telegram) newNode.data.botToken = secrets.telegram;
+                    break;
+                case 'chatGPT':
+                    if (!newNode.data.apiKey && secrets.openai) newNode.data.apiKey = secrets.openai;
+                    break;
+                case 'yandexgpt':
+                    if (!newNode.data.apiKey && secrets.yandex) newNode.data.apiKey = secrets.yandex;
+                    if (!newNode.data.folderId && secrets.yandexFolderId) newNode.data.folderId = secrets.yandexFolderId;
+                    break;
+                case 'huggingFace':
+                    if (!newNode.data.hfToken && secrets.huggingface) newNode.data.hfToken = secrets.huggingface;
+                    break;
+                case 'deepseek':
+                    if (!newNode.data.apiKey && secrets.deepseek) newNode.data.apiKey = secrets.deepseek;
+                    break;
+            }
+            return newNode;
+        });
+
+
         const testTriggerData = {
           message: {
             text: "Это тестовый запуск!",
@@ -108,9 +136,10 @@ const runWorkflow = async (req, res) => {
           }
         };
 
-        const result = await executionService.executeWorkflow(workflow.nodes, workflow.edges, testTriggerData); 
+        const result = await executionService.executeWorkflow(nodesWithSecrets, workflow.edges, testTriggerData); 
         res.json(result);
     } catch (error) {
+        console.error("Критическая ошибка при запуске процесса:", error);
         res.status(500).json({ message: error.message });
     }
 };

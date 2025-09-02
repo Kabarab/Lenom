@@ -4,20 +4,18 @@ const cors = require('cors');
 const workflowRoutes = require('./api/workflows.routes');
 const telegramRoutes = require('./api/telegram.routes');
 const webhookRoutes = require('./api/webhook.routes');
+const secretsRoutes = require('./api/secrets.routes'); // --- ДОБАВЛЕНО ---
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// --- ИЗМЕНЕНИЕ: Настраиваем CORS ---
-// Список доменов, которым разрешено обращаться к вашему API
 const allowedOrigins = [
-  'https://len-frontend-chi.vercel.app', // Ваш фронтенд на Vercel
-  'http://localhost:5173' // Для локальной разработки (если порт другой, измените)
+  'https://len-frontend-chi.vercel.app',
+  'http://localhost:5173'
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Если запрос приходит с одного из разрешенных доменов (или это не браузерный запрос)
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -26,16 +24,13 @@ const corsOptions = {
   }
 };
 
-// Используем cors с нашими настройками
 app.use(cors(corsOptions));
-// --- КОНЕЦ ИЗМЕНЕНИЯ ---
-
-
 app.use(express.json());
 
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/secrets', secretsRoutes); // --- ДОБАВЛЕНО ---
 
 app.listen(port, () => {
   console.log(`Сервер успешно запущен на порту ${port}`);
