@@ -1,3 +1,5 @@
+// lenom/src/services/execution.service.js
+
 const axios = require('axios');
 
 // --- НОВАЯ ФУНКЦИЯ ---
@@ -205,6 +207,39 @@ async function executeWorkflow(nodes, edges, triggerData, triggerType = null) {
             } catch (error) {
                 console.error("Ошибка узла ChatGPT:", error.response?.data || error.message);
                 return { success: false, message: `Ошибка узла ChatGPT: ${error.message}` };
+            }
+        }
+        
+        if (currentNode.type === 'deepseek') {
+            try {
+                const config = deepReplacePlaceholders(currentNode.data, currentData);
+                const { apiKey, prompt, model = 'deepseek-chat' } = config;
+
+                if (!apiKey || !prompt) {
+                    throw new Error('Не указан API-ключ или запрос (prompt) для Deepseek!');
+                }
+
+                console.log(`Отправляю запрос к модели Deepseek: ${model}`);
+
+                const response = await axios({
+                    method: 'POST',
+                    url: 'https://api.deepseek.com/chat/completions',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    data: {
+                        model: model,
+                        messages: [{ role: 'user', content: prompt }]
+                    }
+                });
+
+                currentData[currentNode.id] = response.data;
+                console.log("Ответ от Deepseek успешно получен.");
+
+            } catch (error) {
+                console.error("Ошибка узла Deepseek:", error.response?.data || error.message);
+                return { success: false, message: `Ошибка узла Deepseek: ${error.message}` };
             }
         }
 
